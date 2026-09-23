@@ -65,15 +65,18 @@ def find_free_port(preferred: int = 8000) -> int:
 
 
 def get_browser_executable() -> str | None:
-    """Find Microsoft Edge or Google Chrome for --app borderless mode."""
+    """Find Google Chrome first if present, otherwise Microsoft Edge for --app borderless mode."""
     candidates = [
+        # Check Google Chrome first
+        os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"), r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), r"Google\Chrome\Application\chrome.exe"),
+        shutil.which("chrome"),
+        # Fallback to Microsoft Edge
         os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"), r"Microsoft\Edge\Application\msedge.exe"),
         os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), r"Microsoft\Edge\Application\msedge.exe"),
         os.path.join(os.environ.get("LOCALAPPDATA", ""), r"Microsoft\Edge\Application\msedge.exe"),
-        os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), r"Google\Chrome\Application\chrome.exe"),
-        os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"), r"Google\Chrome\Application\chrome.exe"),
         shutil.which("msedge"),
-        shutil.which("chrome"),
     ]
     for candidate in candidates:
         if candidate and os.path.exists(candidate):
@@ -152,8 +155,12 @@ def main():
 
     try:
         if browser_proc:
-            # Wait for user to close the desktop window
+            start_launch = time.time()
             browser_proc.wait()
+            # If browser exited almost immediately (delegated to existing window), keep running
+            if time.time() - start_launch < 3.0:
+                while True:
+                    time.sleep(1)
         else:
             # Keep running until killed
             while True:

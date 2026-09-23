@@ -35,6 +35,7 @@ downloads_*/
 # PyInstaller
 *.manifest
 *.spec
+*.zip
 
 # Node / Frontend
 node_modules/

@@ -1,6 +1,8 @@
 import psutil
 import socket
 import re
+import sys
+import time
 import subprocess
 from typing import List, Dict, Optional, Tuple
 from app.models.schemas import NetworkInterface, NetworkType
@@ -11,6 +13,8 @@ logger = logging.getLogger("multilink.networking")
 class InterfaceManager:
     def __init__(self):
         self._enabled_overrides: Dict[str, bool] = {}
+        self._descriptions_cache: Dict[str, str] = {}
+        self._last_desc_query_time: float = 0.0
 
     def classify_adapter(self, name: str, desc: str = "") -> NetworkType:
         combined = f"{name} {desc}".lower()
@@ -33,10 +37,29 @@ class InterfaceManager:
 
     def get_windows_adapter_descriptions(self) -> Dict[str, str]:
         """Query adapter descriptions via PowerShell Get-NetAdapter when on Windows."""
+        now = time.time()
+        if self._descriptions_cache and (now - self._last_desc_query_time < 60.0):
+            return self._descriptions_cache
+
         descriptions = {}
         try:
-            cmd = ["powershell.exe", "-NoProfile", "-Command", "Get-NetAdapter | Select-Object -Property Name, InterfaceDescription | ConvertTo-Json"]
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=4)
+            cmd = ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", "Get-NetAdapter | Select-Object -Property Name, InterfaceDescription | ConvertTo-Json"]
+            
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+            startupinfo = None
+            if sys.platform == "win32":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0  # SW_HIDE
+
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=4,
+                creationflags=creationflags,
+                startupinfo=startupinfo
+            )
             if proc.returncode == 0 and proc.stdout.strip():
                 import json
                 data = json.loads(proc.stdout)
@@ -47,9 +70,12 @@ class InterfaceManager:
                     desc = item.get("InterfaceDescription", "")
                     if name:
                         descriptions[name] = desc
+                self._descriptions_cache = descriptions
+                self._last_desc_query_time = now
         except Exception as e:
             logger.debug(f"Could not query Get-NetAdapter descriptions: {e}")
-        return descriptions
+            
+        return self._descriptions_cache or descriptions
 
     def get_interfaces(self) -> List[NetworkInterface]:
         interfaces: List[NetworkInterface] = []
