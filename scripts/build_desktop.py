@@ -66,6 +66,7 @@ def build_executable():
         "--onedir",  # onedir builds much faster and launches instantly
         "--windowed", # no black console window
         "--noconfirm",
+        f"--icon={ROOT_DIR / 'assets' / 'icon.ico'}",
         f"--paths={backend_dir}",
         f"--add-data={frontend_dist}{sep}dist",
         f"--add-data={backend_dir / 'app'}{sep}backend/app",

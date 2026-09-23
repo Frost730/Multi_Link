@@ -1,13 +1,11 @@
 import React from 'react';
 import { 
-  ArrowDownToLine, 
   Activity, 
   Network, 
   Settings as SettingsIcon, 
   Plus, 
   History, 
-  Layers,
-  Zap
+  Layers
 } from 'lucide-react';
 import type { OperatingMode } from '../types';
 import { formatSpeed } from '../services/api';
@@ -70,13 +68,8 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Logo & Brand */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => onTabChange('dashboard')}>
-              <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-blue via-brand-cyan to-brand-emerald p-[1.5px] shadow-lg shadow-blue-500/20">
-                <div className="w-full h-full bg-dark-900 rounded-[10px] flex items-center justify-center">
-                  <div className="relative flex items-center justify-center">
-                    <ArrowDownToLine className="w-5 h-5 text-brand-cyan" />
-                    <Zap className="w-2.5 h-2.5 text-brand-emerald absolute -top-1 -right-1" />
-                  </div>
-                </div>
+              <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-500/30 shrink-0">
+                <img src="/icon.png" alt="MultiLink Logo" className="w-full h-full object-cover" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
