@@ -59,6 +59,19 @@ async def init_db():
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(settings.db_path) as db:
         await db.executescript(SCHEMA_SQL)
+        # Clean up any lingering error messages on completed downloads
+        await db.execute("""
+            UPDATE downloads 
+            SET error_message = NULL 
+            WHERE status = 'COMPLETED' AND error_message IS NOT NULL
+        """)
+        # Ensure chunks for completed downloads are marked COMPLETED
+        await db.execute("""
+            UPDATE chunks 
+            SET status = 'COMPLETED' 
+            WHERE download_id IN (SELECT id FROM downloads WHERE status = 'COMPLETED') 
+              AND status != 'COMPLETED'
+        """)
         await db.commit()
     logger.info(f"Database initialized at {settings.db_path}")
 

@@ -4,7 +4,8 @@ import type {
   AnalyzeResponse,
   NetworkInfoResponse,
   Settings,
-  BandwidthTestResult
+  BandwidthTestResult,
+  IntegrityResult
 } from '../types';
 
 const API_BASE = (typeof window !== 'undefined' && window.location.port !== '5173' && window.location.origin.startsWith('http'))
@@ -99,6 +100,17 @@ export const api = {
       const err = await res.json().catch(() => ({ detail: 'Failed to retry chunks' }));
       throw new Error(err.detail || 'Failed to retry chunks');
     }
+  },
+
+  async verifyIntegrity(id: string): Promise<IntegrityResult> {
+    const res = await fetch(`${API_BASE}/api/downloads/${id}/verify-integrity`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to verify file integrity' }));
+      throw new Error(err.detail || 'Failed to verify file integrity');
+    }
+    return res.json();
   },
 
   async getNetworkInfo(): Promise<NetworkInfoResponse> {

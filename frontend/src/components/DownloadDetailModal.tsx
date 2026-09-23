@@ -8,7 +8,7 @@ import {
   RotateCcw,
   AlertTriangle
 } from 'lucide-react';
-import type { Download as DownloadType, Chunk } from '../types';
+import type { Download as DownloadType, Chunk, IntegrityResult } from '../types';
 import { api, formatBytes, formatSpeed, formatETA } from '../services/api';
 
 interface DownloadDetailModalProps {
@@ -31,6 +31,8 @@ export const DownloadDetailModal: React.FC<DownloadDetailModalProps> = ({
   const [newUrl, setNewUrl] = useState('');
   const [updatingUrl, setUpdatingUrl] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [integrityResult, setIntegrityResult] = useState<IntegrityResult | null>(null);
 
   useEffect(() => {
     if (isOpen && download?.error_message && (download.error_message.includes('expired') || download.error_message.includes('update the URL'))) {
@@ -87,6 +89,27 @@ export const DownloadDetailModal: React.FC<DownloadDetailModalProps> = ({
     }
   };
 
+  const handleVerifyIntegrity = async () => {
+    if (!download) return;
+    setVerifying(true);
+    try {
+      const res = await api.verifyIntegrity(download.id);
+      setIntegrityResult(res);
+      onDownloadUpdated?.();
+      const data = await api.getChunks(download.id);
+      setChunks(data);
+    } catch (err: any) {
+      console.error('Failed to verify file integrity:', err);
+      alert(err.message || 'Failed to verify file integrity');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  useEffect(() => {
+    setIntegrityResult(null);
+  }, [download?.id, isOpen]);
+
   useEffect(() => {
     if (!isOpen || !download) return;
 
@@ -122,6 +145,9 @@ export const DownloadDetailModal: React.FC<DownloadDetailModalProps> = ({
   };
 
   const getChunkColor = (c: Chunk) => {
+    if (download?.status === 'COMPLETED') {
+      return 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400/50';
+    }
     switch (c.status) {
       case 'COMPLETED':
         return 'bg-emerald-500 hover:bg-emerald-400 border-emerald-400/50';
@@ -135,10 +161,10 @@ export const DownloadDetailModal: React.FC<DownloadDetailModalProps> = ({
     }
   };
 
-  const completedCount = chunks.filter(c => c.status === 'COMPLETED').length;
-  const downloadingCount = chunks.filter(c => c.status === 'DOWNLOADING').length;
-  const pendingCount = chunks.filter(c => c.status === 'PENDING').length;
-  const failedCount = chunks.filter(c => c.status === 'FAILED').length;
+  const completedCount = download?.status === 'COMPLETED' ? chunks.length : chunks.filter(c => c.status === 'COMPLETED').length;
+  const downloadingCount = download?.status === 'COMPLETED' ? 0 : chunks.filter(c => c.status === 'DOWNLOADING').length;
+  const pendingCount = download?.status === 'COMPLETED' ? 0 : chunks.filter(c => c.status === 'PENDING').length;
+  const failedCount = download?.status === 'COMPLETED' ? 0 : chunks.filter(c => c.status === 'FAILED').length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
@@ -283,6 +309,62 @@ export const DownloadDetailModal: React.FC<DownloadDetailModalProps> = ({
             )}
           </div>
 
+          {/* File Integrity Verification Section */}
+          <div className="p-4 rounded-xl bg-dark-950 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-sm font-bold text-white">File Integrity & Chunk Verification</h4>
+              </div>
+              <button
+                onClick={handleVerifyIntegrity}
+                disabled={verifying}
+                className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <ShieldCheck className={`w-3.5 h-3.5 ${verifying ? 'animate-spin' : ''}`} />
+                {verifying ? 'Verifying Integrity...' : 'Verify File Integrity'}
+              </button>
+            </div>
+
+            {integrityResult ? (
+              <div className={`p-3.5 rounded-xl border text-xs space-y-2.5 animate-in fade-in duration-150 ${
+                integrityResult.verified 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200' 
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5 text-sm">
+                    {integrityResult.verified ? '✅ File 100% Intact & Verified' : '⚠️ Integrity Warning'}
+                  </span>
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-black/40 border border-emerald-500/20">
+                    {integrityResult.size_matches ? 'Exact Byte Match' : 'Size Mismatch'}
+                  </span>
+                </div>
+                <p className="text-xs opacity-95">{integrityResult.message}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px] border-t border-emerald-500/20">
+                  <div>
+                    <span className="opacity-70 block text-[10px]">File on Disk:</span>
+                    <span className="font-semibold">{formatBytes(integrityResult.actual_size)}</span>
+                  </div>
+                  <div>
+                    <span className="opacity-70 block text-[10px]">Chunks Validated:</span>
+                    <span className="font-semibold">{integrityResult.chunks_completed} / {integrityResult.chunks_total} (0 missing)</span>
+                  </div>
+                  <div>
+                    <span className="opacity-70 block text-[10px]">SHA-256 Checksum:</span>
+                    <span className="truncate block font-semibold" title={integrityResult.sha256}>
+                      {integrityResult.sha256 ? `${integrityResult.sha256.substring(0, 16)}...` : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-slate-400 text-xs">
+                Perform a bit-by-bit check to ensure all chunks are written without missing offsets, verify the byte size on disk, and compute or match the SHA-256 checksum.
+              </p>
+            )}
+          </div>
+
           {/* Chunk Map Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -298,15 +380,19 @@ export const DownloadDetailModal: React.FC<DownloadDetailModalProps> = ({
               {/* Legend */}
               <div className="flex items-center gap-3 text-[11px]">
                 <span className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded bg-emerald-500" /> {completedCount} Done
+                  <span className="w-2.5 h-2.5 rounded bg-emerald-500" /> {download.status === 'COMPLETED' ? chunks.length : completedCount} Done
                 </span>
-                <span className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded bg-cyan-500 animate-pulse" /> {downloadingCount} Active
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-400">
-                  <span className="w-2.5 h-2.5 rounded bg-slate-800 border border-slate-700" /> {pendingCount} Pending
-                </span>
-                {failedCount > 0 && (
+                {download.status !== 'COMPLETED' && (
+                  <>
+                    <span className="flex items-center gap-1.5 text-slate-300">
+                      <span className="w-2.5 h-2.5 rounded bg-cyan-500 animate-pulse" /> {downloadingCount} Active
+                    </span>
+                    <span className="flex items-center gap-1.5 text-slate-400">
+                      <span className="w-2.5 h-2.5 rounded bg-slate-800 border border-slate-700" /> {pendingCount} Pending
+                    </span>
+                  </>
+                )}
+                {failedCount > 0 && download.status !== 'COMPLETED' && (
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1.5 text-rose-400">
                       <span className="w-2.5 h-2.5 rounded bg-rose-500" /> {failedCount} Failed

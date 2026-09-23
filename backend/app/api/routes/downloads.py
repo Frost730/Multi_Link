@@ -170,3 +170,11 @@ async def retry_failed_endpoint(download_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Download not found")
     return {"status": "retrying", "id": download_id}
+
+@router.post("/{download_id}/verify-integrity")
+async def verify_integrity_endpoint(download_id: str):
+    res = await download_manager.verify_download_integrity(download_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Download not found")
+    return res
+

@@ -145,3 +145,54 @@ async def test_connection_range_guard():
         await conn.close()
     finally:
         await runner.cleanup()
+
+@pytest.mark.asyncio
+async def test_download_manager_verify_integrity():
+    from app.core.config import settings
+    from app.database.db import init_db
+    from app.database.repository import DownloadRepository
+    from app.models.schemas import Download, Chunk, DownloadStatus, ChunkStatus, OperatingMode
+    from app.downloads.download_manager import download_manager
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        settings.db_path = Path(tmpdir) / "test_verify.db"
+        await init_db()
+
+        target_file = Path(tmpdir) / "verified_file.bin"
+        payload = b"MultiLink-ZeroLoss-Chunk-Integrity-Payload" * 100
+        target_file.write_bytes(payload)
+        expected_sha = hashlib.sha256(payload).hexdigest()
+
+        dl = Download(
+            id="vtest1",
+            url="http://example.com/verified_file.bin",
+            filename="verified_file.bin",
+            save_path=str(target_file),
+            total_size=len(payload),
+            downloaded_size=len(payload),
+            status=DownloadStatus.COMPLETED,
+            created_at="2026-09-22T00:00:00",
+            updated_at="2026-09-22T00:00:00",
+            range_supported=True,
+            mode=OperatingMode.MULTI_CONNECTION,
+            chunks_total=2,
+            chunks_completed=2,
+            checksum=expected_sha
+        )
+        chunks = [
+            Chunk(id="vc1", download_id="vtest1", chunk_index=0, start_byte=0, end_byte=len(payload)//2 - 1, downloaded_bytes=len(payload)//2, status=ChunkStatus.COMPLETED),
+            Chunk(id="vc2", download_id="vtest1", chunk_index=1, start_byte=len(payload)//2, end_byte=len(payload)-1, downloaded_bytes=len(payload) - len(payload)//2, status=ChunkStatus.COMPLETED),
+        ]
+        await DownloadRepository.create_download(dl)
+        await DownloadRepository.save_chunks(chunks)
+
+        # Run integrity verification
+        report = await download_manager.verify_download_integrity("vtest1")
+        assert report is not None
+        assert report["verified"] is True
+        assert report["status"] == "VERIFIED"
+        assert report["size_matches"] is True
+        assert report["actual_size"] == len(payload)
+        assert report["sha256"] == expected_sha
+        assert report["failed_chunk_count"] == 0
+

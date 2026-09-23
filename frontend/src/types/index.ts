@@ -133,3 +133,22 @@ export interface SpeedPoint {
   combined_mbps: number;
   [key: string]: any; // per-interface mbps
 }
+
+export interface IntegrityResult {
+  verified: boolean;
+  status: string;
+  download_id: string;
+  filename: string;
+  file_path: string;
+  file_exists: boolean;
+  actual_size: number;
+  expected_size: number;
+  size_matches: boolean;
+  sha256: string;
+  chunks_total: number;
+  chunks_completed: number;
+  failed_chunk_count: number;
+  pending_chunk_count: number;
+  message: string;
+}
+

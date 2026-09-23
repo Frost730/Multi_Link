@@ -9,7 +9,8 @@ import {
   AlertCircle, 
   Clock, 
   HardDrive, 
-  Gauge
+  Gauge,
+  ShieldCheck
 } from 'lucide-react';
 import { formatBytes, formatSpeed, formatETA } from '../services/api';
 
@@ -138,6 +139,17 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             </button>
           )}
 
+          {download.status === 'COMPLETED' && (
+            <button
+              onClick={() => onOpenDetails(download)}
+              className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors flex items-center gap-1.5 text-xs font-medium"
+              title="Verify File Integrity"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Verify Integrity</span>
+            </button>
+          )}
+
           <button
             onClick={() => onDelete(download.id)}
             className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 border border-slate-700 transition-colors"
@@ -190,8 +202,8 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
         </div>
       </div>
 
-      {/* Error message snippet */}
-      {download.error_message && (
+      {/* Error message snippet - only display when download is NOT completed */}
+      {download.error_message && download.status !== 'COMPLETED' && (
         <div className="mt-2 text-xs text-rose-400 bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20 flex items-center justify-between gap-3">
           <div className="truncate flex-1">
             <span className="font-semibold block text-rose-300">Download Stalled</span>

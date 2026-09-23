@@ -24,6 +24,19 @@ def check_prerequisites():
         sys.exit(1)
 
 
+def close_running_instances():
+    """Ensure previous running MultiLink instances are closed so files can be overwritten."""
+    try:
+        import psutil
+        for proc in psutil.process_iter(['name']):
+            if proc.info['name'] and 'multilink' in proc.info['name'].lower():
+                print(f"Closing running MultiLink instance (PID {proc.pid})...")
+                proc.terminate()
+                proc.wait(timeout=3)
+    except Exception:
+        pass
+
+
 def build_frontend():
     print("\n==> Building frontend...")
     npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
@@ -92,6 +105,7 @@ def build_executable():
 
 def main():
     check_prerequisites()
+    close_running_instances()
     build_frontend()
     build_executable()
 
