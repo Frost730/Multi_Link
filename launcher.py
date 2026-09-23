@@ -18,8 +18,26 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = ROOT_DIR / "backend"
 
+# Fix for PyInstaller --windowed / pythonw mode where sys.stdout and sys.stderr are None
+class NullWriter:
+    def write(self, s):
+        pass
+    def flush(self):
+        pass
+    def isatty(self):
+        return False
+
+if sys.stdout is None:
+    sys.stdout = NullWriter()
+if sys.stderr is None:
+    sys.stderr = NullWriter()
+if sys.stdin is None:
+    import io
+    sys.stdin = io.StringIO()
+
 if BACKEND_DIR.exists() and str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
+
 
 if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
     meipass = Path(sys._MEIPASS)
@@ -93,6 +111,7 @@ def main():
         host="127.0.0.1",
         port=port,
         log_level="warning",
+        log_config=None,
         access_log=False
     )
     server = uvicorn.Server(config)
